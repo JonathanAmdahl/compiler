@@ -1,0 +1,20 @@
+a, b, c, d;
+{
+    input a;
+    input c;
+    SWITCH 1 {
+        CASE 0 : {
+            output b;
+            output b;
+        }
+        CASE 1 : {
+            output a;
+            output a;
+        }
+        DEFAULT : {
+            output c;
+            output c;
+        }
+    }
+}
+1 2 3 4
