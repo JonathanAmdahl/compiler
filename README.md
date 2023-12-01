@@ -35,7 +35,6 @@ i, j;
 	output j;
 }
 1 2 3
-
 ```
 
 While Loops
