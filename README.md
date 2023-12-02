@@ -109,3 +109,16 @@ output a;
 }
 2 3 4 6
 ```
+
+FOR loops 
+```
+a, b, c, d;
+{
+    input a;
+    input c;
+    FOR (b = 0; b < 3; b = b + 1;) {
+        output a;
+    }
+}
+3 2 3 4
+```

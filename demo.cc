@@ -25,6 +25,8 @@ map<int, int> constantAddressMap; //stores the memory location for all the const
 stack<pair<string, InstructionNode*>> pendingJump; //stores all instructions that need a jump stitched to them
 stack<int> switchVariable; //stores the variable saved for comparison in the cases/switch statements
 stack<int> switchMemory; //stores ther variable that tracks if a switch statement has entered a case
+stack<InstructionNode*> forIfLoop; //stores instructions needed to stich the if statement for loops
+stack<InstructionNode*> forIncrementLoop; //stores instructions needed to stich the if statement for loops
 int jumpNextInstruction = 0; //stores if jump should be stitched
 bool debugMode = false;
 
@@ -35,8 +37,10 @@ InstructionNode* processLine(Token& token, int& tokenCount) {
     //push all the tokens to vector that make a statement
     while(token.token_type != END_OF_FILE) {
         tokenCount++;
-        if(token.token_type == SEMICOLON)
-            break;
+        if(token.token_type == SEMICOLON) {
+            if(tokens[0].token_type != FOR) 
+                break;
+        }
 
         //LBRACE we only want to include it in the LINE statement for certain scenarios
         else if(token.token_type == LBRAC || token.token_type == LBRACE) {
@@ -63,6 +67,11 @@ InstructionNode* processLine(Token& token, int& tokenCount) {
                 break;
             } 
             if(debugMode) cout << "NON LONE R BRACKET\n";
+        }
+        //RIGHT PARENTHESIS
+        else if(token.token_type == RPAREN) {
+            tokens.push_back(token);
+            break;
         }
 
         //PUSH AND KEEP GOING
@@ -242,8 +251,122 @@ InstructionNode* processLine(Token& token, int& tokenCount) {
 
                 return node;
             }
-
+        
             break;
+        case 17:
+            //handle for loop
+            if(tokens[0].token_type == FOR && tokens[1].token_type == LPAREN
+            && tokens[2].token_type == ID && tokens[3].token_type == EQUAL 
+            && (tokens[4].token_type == NUM || tokens[4].token_type == ID) 
+            && tokens[5].token_type == SEMICOLON
+            && (tokens[6].token_type == ID || tokens[6].token_type == NUM)
+            && (tokens[7].token_type == LESS || tokens[7].token_type == GREATER 
+            || tokens[7].token_type == NOTEQUAL) && (tokens[8].token_type == NUM
+            || tokens[8].token_type == ID) && tokens[9].token_type == SEMICOLON
+            && tokens[10].token_type == ID && tokens[11].token_type == EQUAL
+            && (tokens[12].token_type == ID || tokens[12].token_type == NUM) 
+            && (tokens[13].token_type == PLUS || tokens[13].token_type == MINUS
+            || tokens[13].token_type == MULT || tokens[13].token_type == DIV)
+            && (tokens[14].token_type == NUM || tokens[14].token_type == ID)
+            && tokens[15].token_type == SEMICOLON && tokens[16].token_type == RPAREN) {
+                //CREATE WHILE STATEMENT
+                struct InstructionNode* ifStatement = new InstructionNode;
+                ifStatement->type = CJMP;
+
+                //handle left variable/num
+                if(tokens[6].token_type == ID)
+                    ifStatement->cjmp_inst.operand1_index = variableAddressMap[tokens[6].lexeme]; //addr of variable
+                else if(tokens[6].token_type == NUM)
+                    ifStatement->cjmp_inst.operand1_index = constantAddressMap[stoi(tokens[6].lexeme)]; //addr of num
+                else
+                    if(debugMode) cout << "TOKEN 6 NO CONSTANT OR VARIABLE\n";
+
+                //handle comparison signs
+                if(tokens[7].token_type == GREATER)
+                    ifStatement->cjmp_inst.condition_op = CONDITION_GREATER;
+                else if(tokens[7].token_type == LESS)
+                    ifStatement->cjmp_inst.condition_op = CONDITION_LESS;
+                else if(tokens[7].token_type == NOTEQUAL)
+                    ifStatement->cjmp_inst.condition_op = CONDITION_NOTEQUAL;
+                else
+                    cout << "TOKEN 7 NON CONDITION FOUND\n";
+
+                //handle right variable/num
+                if(tokens[8].token_type == ID)
+                    ifStatement->cjmp_inst.operand2_index = variableAddressMap[tokens[8].lexeme]; //addr of variable
+                else if(tokens[8].token_type == NUM)
+                    ifStatement->cjmp_inst.operand2_index = constantAddressMap[stoi(tokens[8].lexeme)]; //addr of num
+                else
+                    if(debugMode) cout << "TOKEN 8 NO CONSTANT OR VARIABLE\n";
+                
+                pendingJump.push({"FOR", ifStatement}); //signal that jump may be needed
+                forIfLoop.push(ifStatement); //push if statement, we will insert it after this instruction
+
+                //forIf > 0, push
+                //for increment > 0 only if bracket is found for FOR loop
+
+                //CREATE ASSIGNMENT node
+                struct InstructionNode* assignmentNode = new InstructionNode;
+
+                assignmentNode->type = ASSIGN;
+                assignmentNode->assign_inst.left_hand_side_index = variableAddressMap[tokens[10].lexeme]; //addr of variable
+
+                //handle left variable/num
+                if(tokens[12].token_type == ID)
+                    assignmentNode->assign_inst.operand1_index = variableAddressMap[tokens[12].lexeme]; //addr of variable
+                else if(tokens[12].token_type == NUM)
+                    assignmentNode->assign_inst.operand1_index = constantAddressMap[stoi(tokens[12].lexeme)]; //addr of num
+                else
+                    if(debugMode) cout << "TOKEN 12 NO CONSTANT OR VARIABLE\n";
+
+                //handle arithmetic
+                if(tokens[13].token_type == PLUS)
+                    assignmentNode->assign_inst.op = OPERATOR_PLUS;
+                else if(tokens[13].token_type == MINUS)
+                    assignmentNode->assign_inst.op = OPERATOR_MINUS;
+                else if(tokens[13].token_type == DIV)
+                    assignmentNode->assign_inst.op = OPERATOR_DIV;
+                else if(tokens[13].token_type == MULT)
+                    assignmentNode->assign_inst.op = OPERATOR_MULT;
+                else
+                    if(debugMode) cout << "TOKEN 13 NO ARITHMETIC SIGN\n";
+
+                //handle right variable/num
+                if(tokens[14].token_type == ID)
+                    assignmentNode->assign_inst.operand2_index = variableAddressMap[tokens[14].lexeme]; // addr of variable
+                else if(tokens[14].token_type == NUM)
+                    assignmentNode->assign_inst.operand2_index = constantAddressMap[stoi(tokens[14].lexeme)]; // addr of num
+                else
+                    if(debugMode) cout << "TOKEN 14 NO CONSTANT OR VARIABLE\n";
+
+                forIncrementLoop.push(assignmentNode); //push increment these might need to be seperated
+
+                //handle initial assignment
+                node->type = ASSIGN;
+                node->assign_inst.left_hand_side_index = variableAddressMap[tokens[2].lexeme]; //addr of variable
+                node->assign_inst.op = OPERATOR_NONE;
+                if(tokens[4].token_type == NUM) {
+                    if(debugMode) cout << tokens[4].lexeme << " = " << tokens[4].lexeme << "\n";
+                    node->assign_inst.operand1_index = constantAddressMap[stoi(tokens[4].lexeme)]; //addr of num
+                    return node;
+                } else if(tokens[4].token_type == ID) {
+                    if(debugMode) cout << tokens[4].lexeme << " = " << tokens[4].lexeme << "\n";
+                    node->assign_inst.operand1_index = variableAddressMap[tokens[4].lexeme]; //addr of variable
+                    return node;
+                } 
+
+
+                //we have to make if statement somewhere else
+                //we shall make a signal?
+
+                //we need to signal pending jump
+                //on pending jump detection, we stitch
+                //3rd instruction - we need to store it somewhere so it can be passed
+                //lets make a stack
+                //jump
+                //noop
+            }
+
         default:
             if(debugMode) cout << "Something passed unhandled\n";
             break;
@@ -319,6 +442,14 @@ struct InstructionNode * parse_generate_intermediate_representation()
             if(head == NULL) 
                 head = currInstruct;
 
+            //attach IF statement for FOR loop
+            if(forIfLoop.size() > 0) {
+                struct InstructionNode* ifStatement = forIfLoop.top();
+                currInstruct->next = ifStatement;
+                currInstruct = ifStatement;
+                forIfLoop.pop();
+            }
+
             //IF JUMP NEEDS TO BE LINKED
             if(jumpNextInstruction > 0) {
                 pair<string, InstructionNode*> topElement = pendingJump.top();
@@ -367,6 +498,25 @@ struct InstructionNode * parse_generate_intermediate_representation()
                     //swap next and jump to get intended functionality
                     defaultInstruct->cjmp_inst.target = defaultInstruct->next; //jump to next
                     defaultInstruct->next = currInstruct; //next to end
+                }
+                //HANDLE FOR LOOP
+                //SAME AS WHILE but a bonus step
+                else if(topElement.first == "FOR") {
+                    struct InstructionNode* incrementStatement = forIncrementLoop.top();
+                    forIncrementLoop.pop();
+
+                    //last instruction goes to increment
+                    lastInstruct->next = incrementStatement;
+
+                    struct InstructionNode* whileInstruct = topElement.second;
+                    struct InstructionNode* newJmp = new InstructionNode;
+                    newJmp->type = JMP;
+                    newJmp->jmp_inst.target = whileInstruct;
+                    newJmp->next = currInstruct;
+
+                    //increment then goes to jump
+                    incrementStatement->next = newJmp;
+                    lastInstruct = newJmp;
                 }
             }
 
